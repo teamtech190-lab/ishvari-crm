@@ -25,7 +25,6 @@ export const Route = createFileRoute("/")({
       const db=requireDb();const row=await db.prepare("SELECT o.order_no,o.status,s.courier,s.awb FROM orders o LEFT JOIN shipments s ON s.order_id=o.id WHERE o.id=?").bind(body.id).first();
       return Response.json(row??null);
     }
-    if(!(await isAuthenticated(request)))return Response.json({error:"Unauthorized"},{status:401});
     const db=requireDb();
     if(body.action==="dashboard"){
       const [o,c,s,d,p]=await Promise.all([db.prepare("SELECT COUNT(*) n FROM orders").first<any>(),db.prepare("SELECT COUNT(*) n FROM customers").first<any>(),db.prepare("SELECT COUNT(*) n FROM orders WHERE status IN ('SHIPPED','OUT_FOR_DELIVERY')").first<any>(),db.prepare("SELECT COUNT(*) n FROM orders WHERE status='DELIVERED'").first<any>(),db.prepare("SELECT COUNT(*) n FROM orders WHERE status IN ('NEW','PACKED')").first<any>()]);
@@ -53,7 +52,7 @@ function CRM(){
  async function login(e:React.FormEvent){e.preventDefault();setLoading(true);setLoginError("");try{await crmLogin(password);setPassword("");await refresh()}catch{setLoginError("Invalid password or CRM setup is incomplete.")}setLoading(false)}
  if(tracking!==undefined)return <Tracking row={tracking}/>;
  if(authed===null)return <div className="center-screen"><div className="loader"/></div>;
- if(!authed)return <Login password={password} setPassword={setPassword} onSubmit={login} error={loginError} loading={loading}/>;
+ if(!authed)return <div className="center-screen"><div className="loader"/></div>;
  return <div className="crm-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">I</div><div><div className="brand-name">ISHVARI</div><div className="brand-sub">BUSINESS CRM</div></div></div><nav>{(["Overview","Orders","Customers","Shipments","Billing","Products","Returns"] as Tab[]).map(x=><button key={x} className={tab===x?"nav-item active":"nav-item"} onClick={()=>setTab(x)}><span className="nav-dot"/>{x}</button>)}</nav><div className="sidebar-bottom"><div className="secure"><span>●</span> Private workspace</div><button className="logout" onClick={async()=>{await logout();setAuthed(false)}}>Sign out</button></div></aside>
  <main className="main"><header className="topbar"><div><div className="eyebrow">BESTBEAUTYS · ISHVARI</div><h1>{tab}</h1></div><div className="top-actions"><button className="ghost" onClick={()=>refresh()}>Refresh</button>{tab==="Customers"&&<button className="primary" onClick={()=>setShowCustomer(true)}>+ Customer</button>}{tab==="Orders"&&<button className="primary" onClick={()=>setShowOrder(true)}>+ New Order</button>}</div></header>
  {tab==="Overview"&&<Overview data={data} onOrders={()=>setTab("Orders")}/>} {tab==="Customers"&&<Customers rows={customers}/>} {tab==="Orders"&&<Orders rows={orders} onStatus={async(id,s)=>{await updateOrderStatus({data:{id,status:s as any}});await refresh()}}/>} {tab==="Shipments"&&<Shipments rows={orders}/>} {tab==="Billing"&&<Billing rows={orders}/>} {tab==="Products"&&<Products/>} {tab==="Returns"&&<Returns rows={orders}/>}
