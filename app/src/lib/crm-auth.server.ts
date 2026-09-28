@@ -21,7 +21,9 @@ async function verify(payload: string, signature: string, secret: string) {
   const expected = fromB64url(await sign(payload, secret));
   const actual = fromB64url(signature);
   if (expected.byteLength !== actual.byteLength) return false;
-  return crypto.subtle.timingSafeEqual(expected, actual);
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected[i] ^ actual[i];
+  return diff === 0;
 }
 
 export async function makeSessionCookie() {

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { createCustomer, createOrder, getCustomers, getDashboard, getOrders, updateOrderStatus, login, logout, getPublicTracking } from "../lib/api/crm.functions";
+import { createCustomer, createOrder, getCustomers, getDashboard, getOrders, updateOrderStatus, login as crmLogin, logout, getPublicTracking } from "../lib/api/crm.functions";
 
 export const Route = createFileRoute("/")({
   component: CRM,
