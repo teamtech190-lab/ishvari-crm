@@ -25,6 +25,8 @@ type AppEnv = {
   HF_ENV?: string;
   APP_SLUG?: string;
   CRM_PASSWORD?: string;
+  SHIPROCKET_API_EMAIL?: string;
+  SHIPROCKET_API_PASSWORD?: string;
 };
 
 export function bindings(): AppEnv {

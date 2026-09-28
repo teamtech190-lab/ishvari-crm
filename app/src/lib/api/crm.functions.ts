@@ -8,6 +8,8 @@ export const createOrder=({data}:{data:any})=>post({action:"createOrder",...data
 export const updateOrderStatus=({data}:{data:any})=>post({action:"updateOrderStatus",...data});
 export const updateProduct=({data}:{data:any})=>post({action:"updateProduct",...data});
 export const updateShipment=({data}:{data:any})=>post({action:"updateShipment",...data});
+export const createShiprocketShipment=({data}:{data:any})=>post({action:"createShiprocketShipment",...data});
+export const trackShiprocketShipment=({data}:{data:any})=>post({action:"trackShiprocketShipment",...data});
 export const getInvoice=(id:string)=>post({action:"invoice",id});
 export const getBusinessSettings=()=>post({action:"businessSettings"});
 export const updateBusinessSettings=({data}:{data:any})=>post({action:"updateBusinessSettings",...data});
