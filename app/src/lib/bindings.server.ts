@@ -24,6 +24,7 @@ type AppEnv = {
   CONTAINER?: DurableObjectNamespace;
   HF_ENV?: string;
   APP_SLUG?: string;
+  CRM_PASSWORD?: string;
 };
 
 export function bindings(): AppEnv {
