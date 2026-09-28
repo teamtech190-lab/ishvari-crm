@@ -1,22 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { createCustomer, createOrder, getCustomers, getDashboard, getOrders, updateOrderStatus } from "../lib/api/crm.functions";
+import { createCustomer, createOrder, getCustomers, getDashboard, getOrders, updateOrderStatus, login, logout, getPublicTracking } from "../lib/api/crm.functions";
 
-export const Route = createFileRoute("/")({ component: CRM });
+export const Route = createFileRoute("/")({
+  component: CRM,
+  server:{handlers:{POST:async({request})=>{
+    const body=await request.json().catch(()=>null) as any;
+    const {isAuthenticated,requireDb,makeSessionCookie,clearSessionCookie}=await import("../lib/crm-auth.server");
+    const {bindings}=await import("../lib/bindings.server");
+    if(!body?.action)return Response.json({error:"Missing action"},{status:400});
+    if(body.action==="login"){
+      const secret=bindings().CRM_PASSWORD;
+      if(!secret)return Response.json({error:"CRM_PASSWORD is not configured."},{status:503});
+      const supplied=typeof body.password==="string"?body.password:"";
+      const [a,b]=await Promise.all([crypto.subtle.digest("SHA-256",new TextEncoder().encode(supplied)),crypto.subtle.digest("SHA-256",new TextEncoder().encode(secret))]);
+      const aa=new Uint8Array(a),bb=new Uint8Array(b);let diff=0;for(let i=0;i<aa.length;i++)diff|=aa[i]^bb[i];
+      if(supplied.length>256||diff!==0)return Response.json({error:"Invalid password"},{status:401});
+      return Response.json({ok:true},{headers:{"Set-Cookie":await makeSessionCookie()}});
+    }
+    if(body.action==="logout")return Response.json({ok:true},{headers:{"Set-Cookie":clearSessionCookie()}});
+    if(body.action==="track"){
+      if(typeof body.id!=="string"||!body.id)return Response.json({error:"Invalid tracking id"},{status:400});
+      const db=requireDb();const row=await db.prepare("SELECT o.order_no,o.status,s.courier,s.awb FROM orders o LEFT JOIN shipments s ON s.order_id=o.id WHERE o.id=?").bind(body.id).first();
+      return Response.json(row??null);
+    }
+    if(!(await isAuthenticated(request)))return Response.json({error:"Unauthorized"},{status:401});
+    const db=requireDb();
+    if(body.action==="dashboard"){
+      const [o,c,s,d,p]=await Promise.all([db.prepare("SELECT COUNT(*) n FROM orders").first<any>(),db.prepare("SELECT COUNT(*) n FROM customers").first<any>(),db.prepare("SELECT COUNT(*) n FROM orders WHERE status IN ('SHIPPED','OUT_FOR_DELIVERY')").first<any>(),db.prepare("SELECT COUNT(*) n FROM orders WHERE status='DELIVERED'").first<any>(),db.prepare("SELECT COUNT(*) n FROM orders WHERE status IN ('NEW','PACKED')").first<any>()]);
+      const recent=await db.prepare("SELECT o.id,o.order_no,o.status,o.payment_status,o.total_paise,o.created_at,c.name,c.phone FROM orders o JOIN customers c ON c.id=o.customer_id ORDER BY o.created_at DESC LIMIT 8").all();
+      return Response.json({metrics:{orders:o?.n??0,customers:c?.n??0,shipped:s?.n??0,delivered:d?.n??0,pending:p?.n??0},recent:recent.results??[]});
+    }
+    if(body.action==="customers"){const r=await db.prepare("SELECT * FROM customers ORDER BY created_at DESC").all();return Response.json(r.results??[])}
+    if(body.action==="orders"){const r=await db.prepare("SELECT o.*,c.name customer_name,c.phone customer_phone,s.courier,s.awb,s.status shipment_status FROM orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN shipments s ON s.order_id=o.id ORDER BY o.created_at DESC").all();return Response.json(r.results??[])}
+    if(body.action==="createCustomer"){const d=body; if(typeof d.name!=="string"||d.name.length<2||typeof d.phone!=="string"||d.phone.length<8)return Response.json({error:"Invalid customer"},{status:400});const id=crypto.randomUUID();await db.prepare("INSERT INTO customers (id,name,phone,email,address,city,state,pincode) VALUES (?,?,?,?,?,?,?,?)").bind(id,d.name,d.phone,d.email||null,d.address||null,d.city||null,d.state||null,d.pincode||null).run();return Response.json({id})}
+    if(body.action==="createOrder"){if(typeof body.customerId!=="string"||typeof body.productName!=="string"||!Number.isInteger(body.quantity)||body.quantity<1||!Number.isInteger(body.unitPricePaise)||body.unitPricePaise<0)return Response.json({error:"Invalid order"},{status:400});const id=crypto.randomUUID(),itemId=crypto.randomUUID(),shipId=crypto.randomUUID(),orderNo="ISH-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+crypto.randomUUID().slice(0,8).toUpperCase();const subtotal=body.quantity*body.unitPricePaise,gst=Math.round(subtotal*.18),total=subtotal+gst+(body.shippingPaise||0);await db.batch([db.prepare("INSERT INTO orders (id,order_no,source,customer_id,status,payment_status,payment_mode,subtotal_paise,shipping_paise,gst_paise,total_paise) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(id,orderNo,body.source||"CRM",body.customerId,"NEW",body.paymentMode==="COD"?"PENDING":"PAID",body.paymentMode||"PREPAID",subtotal,body.shippingPaise||0,gst,total),db.prepare("INSERT INTO order_items (id,order_id,product_name,quantity,unit_price_paise,total_paise) VALUES (?,?,?,?,?,?)").bind(itemId,id,body.productName,body.quantity,body.unitPricePaise,subtotal),db.prepare("INSERT INTO shipments (id,order_id) VALUES (?,?)").bind(shipId,id)]);return Response.json({id,orderNo})}
+    if(body.action==="updateOrderStatus"){const allowed=["NEW","PACKED","SHIPPED","OUT_FOR_DELIVERY","DELIVERED","RTO","CANCELLED"];if(!allowed.includes(body.status))return Response.json({error:"Invalid status"},{status:400});await db.prepare("UPDATE orders SET status=?,updated_at=datetime('now') WHERE id=?").bind(body.status,body.id).run();return Response.json({ok:true})}
+    return Response.json({error:"Unknown action"},{status:400});
+  }}}
+});
 type Tab = "Overview"|"Orders"|"Customers"|"Shipments"|"Billing"|"Products"|"Returns";
 const money=(p:number)=>"₹"+(p/100).toLocaleString("en-IN",{minimumFractionDigits:2});
 const statusTone=(s:string)=>({NEW:"blue",PACKED:"amber",SHIPPED:"green",OUT_FOR_DELIVERY:"green",DELIVERED:"green",RTO:"red",CANCELLED:"red"} as Record<string,string>)[s]||"slate";
 
 function CRM(){
- const [authed,setAuthed]=useState<boolean|null>(null),[password,setPassword]=useState(""),[loginError,setLoginError]=useState("");
+ const [authed,setAuthed]=useState<boolean|null>(null),[password,setPassword]=useState(""),[loginError,setLoginError]=useState(""); const [tracking,setTracking]=useState<any|undefined>(undefined);
  const [tab,setTab]=useState<Tab>("Overview"),[data,setData]=useState<any>({metrics:{orders:0,customers:0,shipped:0,delivered:0,pending:0},recent:[]});
  const [customers,setCustomers]=useState<any[]>([]),[orders,setOrders]=useState<any[]>([]),[showCustomer,setShowCustomer]=useState(false),[showOrder,setShowOrder]=useState(false),[loading,setLoading]=useState(false);
  async function refresh(){try{const [d,c,o]=await Promise.all([getDashboard(),getCustomers(),getOrders()]);setData(d);setCustomers(c as any[]);setOrders(o as any[]);setAuthed(true)}catch{setAuthed(false)}}
  useEffect(()=>{void refresh()},[]);
- async function login(e:React.FormEvent){e.preventDefault();setLoading(true);setLoginError("");const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});if(r.ok){setPassword("");await refresh()}else{const j=await r.json().catch(()=>({}));setLoginError(j.error||"Login failed")}setLoading(false)}
- if(authed===null)return <div className="center-screen"><div className="loader"/></div>;
+ async function login(e:React.FormEvent){e.preventDefault();setLoading(true);setLoginError("");try{await login(password);setPassword("");await refresh()}catch{setLoginError("Invalid password or CRM setup is incomplete.")}setLoading(false)}
+ if(tracking!==undefined)return <Tracking row={tracking}/>;\n if(authed===null)return <div className="center-screen"><div className="loader"/></div>;
  if(!authed)return <Login password={password} setPassword={setPassword} onSubmit={login} error={loginError} loading={loading}/>;
- return <div className="crm-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">I</div><div><div className="brand-name">ISHVARI</div><div className="brand-sub">BUSINESS CRM</div></div></div><nav>{(["Overview","Orders","Customers","Shipments","Billing","Products","Returns"] as Tab[]).map(x=><button key={x} className={tab===x?"nav-item active":"nav-item"} onClick={()=>setTab(x)}><span className="nav-dot"/>{x}</button>)}</nav><div className="sidebar-bottom"><div className="secure"><span>●</span> Private workspace</div><button className="logout" onClick={async()=>{await fetch("/api/logout",{method:"POST"});setAuthed(false)}}>Sign out</button></div></aside>
+ return <div className="crm-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark">I</div><div><div className="brand-name">ISHVARI</div><div className="brand-sub">BUSINESS CRM</div></div></div><nav>{(["Overview","Orders","Customers","Shipments","Billing","Products","Returns"] as Tab[]).map(x=><button key={x} className={tab===x?"nav-item active":"nav-item"} onClick={()=>setTab(x)}><span className="nav-dot"/>{x}</button>)}</nav><div className="sidebar-bottom"><div className="secure"><span>●</span> Private workspace</div><button className="logout" onClick={async()=>{await logout();setAuthed(false)}}>Sign out</button></div></aside>
  <main className="main"><header className="topbar"><div><div className="eyebrow">BESTBEAUTYS · ISHVARI</div><h1>{tab}</h1></div><div className="top-actions"><button className="ghost" onClick={()=>refresh()}>Refresh</button>{tab==="Customers"&&<button className="primary" onClick={()=>setShowCustomer(true)}>+ Customer</button>}{tab==="Orders"&&<button className="primary" onClick={()=>setShowOrder(true)}>+ New Order</button>}</div></header>
  {tab==="Overview"&&<Overview data={data} onOrders={()=>setTab("Orders")}/>} {tab==="Customers"&&<Customers rows={customers}/>} {tab==="Orders"&&<Orders rows={orders} onStatus={async(id,s)=>{await updateOrderStatus({data:{id,status:s as any}});await refresh()}}/>} {tab==="Shipments"&&<Shipments rows={orders}/>} {tab==="Billing"&&<Billing rows={orders}/>} {tab==="Products"&&<Products/>} {tab==="Returns"&&<Returns rows={orders}/>}
  </main>{showCustomer&&<CustomerModal onClose={()=>setShowCustomer(false)} onSaved={async()=>{setShowCustomer(false);await refresh()}}/>}{showOrder&&<OrderModal customers={customers} onClose={()=>setShowOrder(false)} onSaved={async()=>{setShowOrder(false);await refresh()}}/>}</div>
@@ -25,7 +61,7 @@ function CRM(){
 function Login({password,setPassword,onSubmit,error,loading}:{password:string,setPassword:(v:string)=>void,onSubmit:(e:React.FormEvent)=>void,error:string,loading:boolean}){return <div className="login-page"><div className="login-card"><div className="brand centered"><div className="brand-mark">I</div><div><div className="brand-name">ISHVARI</div><div className="brand-sub">BUSINESS CRM</div></div></div><div className="login-copy"><h1>Welcome back.</h1><p>Private operations dashboard for BestBeautys.</p></div><form onSubmit={onSubmit}><label>CRM password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoFocus placeholder="Enter your password"/></label>{error&&<div className="error">{error}</div>}<button className="primary wide" disabled={loading}>{loading?"Signing in…":"Sign in"}</button></form><div className="login-note">Your business data stays inside the private CRM workspace.</div></div></div>}
 
 function Overview({data,onOrders}:{data:any,onOrders:()=>void}){return <section className="content"><div className="metric-grid"><Metric label="Total orders" value={data.metrics.orders}/><Metric label="Customers" value={data.metrics.customers}/><Metric label="Ready / packed" value={data.metrics.pending}/><Metric label="Shipped" value={data.metrics.shipped}/><Metric label="Delivered" value={data.metrics.delivered}/></div><div className="section-grid"><div className="panel"><div className="panel-head"><div><div className="section-kicker">ORDER FLOW</div><h2>Recent orders</h2></div><button className="text-button" onClick={onOrders}>View all →</button></div>{data.recent.length?<Table rows={data.recent}/>:<Empty title="No orders yet" text="Your first WhatsApp, Shopify or CRM order will appear here."/>}</div><div className="panel ritual"><div className="section-kicker">OPERATIONS</div><h2>ISHVARI control center</h2><p>One place for customers, orders, payments, shipping and RTO follow-up.</p><div className="flow"><span>Order</span><i>→</i><span>Pack</span><i>→</i><span>Shiprocket</span><i>→</i><span>Deliver</span></div><div className="small-note">Shiprocket and WhatsApp API credentials can be connected later without changing the CRM structure.</div></div></div></section>}
-function Metric({label,value}:{label:string,value:number}){return <div className="metric"><div className="metric-label">{label}</div><div className="metric-value">{value.toLocaleString("en-IN")}</div><div className="metric-line"/></div>}
+function Tracking({row}:{row:any}){return <div className="tracking-page"><div className="tracking-card"><div className="brand centered"><div className="brand-mark">I</div><div><div className="brand-name">ISHVARI</div><div className="brand-sub">TRACKING</div></div></div>{row?<><div className="section-kicker">SHIPMENT STATUS</div><h1>{row.order_no}</h1><div className="tracking-status">{row.status.replaceAll("_"," ")}</div>{row.courier&&<p>Courier: <b>{row.courier}</b></p>}{row.awb&&<p>AWB: <b>{row.awb}</b></p>}</>:<p>Tracking details are not available.</p>}</div></div>}\nfunction Metric({label,value}:{label:string,value:number}){return <div className="metric"><div className="metric-label">{label}</div><div className="metric-value">{value.toLocaleString("en-IN")}</div><div className="metric-line"/></div>}
 function Badge({status}:{status:string}){return <span className={"badge "+statusTone(status)}>{status.replaceAll("_"," ")}</span>}
 function Empty({title,text}:{title:string,text:string}){return <div className="empty"><div className="empty-mark">I</div><h3>{title}</h3><p>{text}</p></div>}
 function Table({rows}:{rows:any[]}){return <div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Total</th><th>Date</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td className="strong">{r.order_no}</td><td>{r.name||r.customer_name}<small>{r.phone||r.customer_phone}</small></td><td><Badge status={r.status}/></td><td>{money(r.total_paise)}</td><td>{new Date(r.created_at+"Z").toLocaleDateString("en-IN")}</td></tr>)}</tbody></table></div>}
