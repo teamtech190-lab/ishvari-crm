@@ -1,4 +1,4 @@
-async function post(body:any){const r=await fetch("/",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(!r.ok)throw new Error("Request failed");return r.json()}
+async function post(body:any){const r=await fetch("/",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.error||"Request failed");return data}
 export const getDashboard=()=>post({action:"dashboard"});
 export const getCustomers=()=>post({action:"customers"});
 export const getOrders=()=>post({action:"orders"});
@@ -15,4 +15,5 @@ export const getBusinessSettings=()=>post({action:"businessSettings"});
 export const updateBusinessSettings=({data}:{data:any})=>post({action:"updateBusinessSettings",...data});
 export const logout=()=>post({action:"logout"});
 export const login=(password:string)=>post({action:"login",password});
+export const changeAdminPassword=({currentPassword,newPassword}:{currentPassword:string,newPassword:string})=>post({action:"changeAdminPassword",currentPassword,newPassword});
 export const getPublicTracking=(id:string)=>post({action:"track",id});
