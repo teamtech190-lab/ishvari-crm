@@ -42,8 +42,10 @@ export async function isAuthenticated(request: Request) {
   if (!secret) return false;
   const raw = request.headers.get("Cookie")?.split(";").map(x=>x.trim()).find(x=>x.startsWith(COOKIE+"="))?.slice(COOKIE.length+1);
   if (!raw) return false;
-  const [payload, sig] = raw.split(".");
-  if (!payload || !sig) return false;
+  const separator = raw.lastIndexOf(".");
+  if (separator <= 0 || separator === raw.length - 1) return false;
+  const payload = raw.slice(0, separator);
+  const sig = raw.slice(separator + 1);
   const [role, expText] = payload.split(".");
   if (role !== "admin" || !/^\d+$/.test(expText) || Number(expText) < Math.floor(Date.now()/1000)) return false;
   return verify(payload, sig, secret);
