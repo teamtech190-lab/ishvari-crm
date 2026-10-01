@@ -55,3 +55,5 @@ export function requireDb() {
   if (!db) throw new Error("CRM database is not configured.");
   return db;
 }
+
+// Deployment sync marker: ensure latest CRM authentication code is rebuilt.
