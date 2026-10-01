@@ -2,7 +2,7 @@
   "name": "@higgsfield/fnf-react",
   "version": "0.0.0",
   "private": true,
-  "description": "React bindings for @higgsfield/fnf — TanStack Query options + cache door, and the stateful presenters (attachments, submit run)",
+  "description": "React bindings for @higgsfield/fnf \u2014 TanStack Query options + cache door, and the stateful presenters (attachments, submit run)",
   "author": "support@higgsfield.ai",
   "license": "UNLICENSED",
   "type": "module",
@@ -10,7 +10,9 @@
     ".": "./src/index.ts",
     "./package.json": "./package.json"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -24,7 +26,7 @@
     "@higgsfield/fnf": "0.0.0",
     "@tanstack/react-query": "^5.74.4",
     "@types/node": "^20.17.30",
-    "@types/react": "^19.0.0",
+    "@types/react": "19.2.15",
     "react": "^19.0.0",
     "typescript": "^5.8.3",
     "vitest": "^4.0.17"
