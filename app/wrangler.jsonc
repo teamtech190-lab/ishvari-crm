@@ -14,7 +14,7 @@
   // uncomment the matching block in the OPT-IN INFRA section below.
   //
   // `name` must stay a valid Cloudflare name (lowercase + dashes, 3–63 chars).
-  "name": "app-slug-placeholder",
+  "name": "ishvari-crm",
 
   // The Worker entry is the TanStack Start SSR server bundle — `vite build`
   // emits dist/server/server.js (`export default { fetch }`). The deploy CI
@@ -38,7 +38,15 @@
   // Non-secret identity for local dev/build; the deploy sets the real values.
   // SECRETS (e.g. the fnf token) are NEVER here and NEVER in the Worker — the
   // platform Outbound Worker injects them on server-side egress.
-  "vars": { "HF_ENV": "dev", "APP_SLUG": "app-slug-placeholder" }
+  "vars": { "HF_ENV": "production", "APP_SLUG": "ishvari-crm" },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ishvari-crm-db",
+      "database_id": "08c32edd-e3b9-413c-bdc9-c8ea24abcf1d"
+    }
+  ]
 
   // ── OPT-IN INFRA (off by default) ────────────────────────────────
   // Declare the service in app.manifest.json; the deploy injects the real
