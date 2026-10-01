@@ -11,12 +11,13 @@ export const Route = createFileRoute("/")({
     const {bindings}=await import("../lib/bindings.server");
     if(!body?.action)return Response.json({error:"Missing action"},{status:400});
     if(body.action==="login"){
-      const secret=bindings().CRM_PASSWORD;
-      if(!secret)return Response.json({error:"CRM_PASSWORD is not configured."},{status:503});
       const supplied=typeof body.password==="string"?body.password:"";
-      const [a,b]=await Promise.all([crypto.subtle.digest("SHA-256",new TextEncoder().encode(supplied)),crypto.subtle.digest("SHA-256",new TextEncoder().encode(secret))]);
-      const aa=new Uint8Array(a),bb=new Uint8Array(b);let diff=0;for(let i=0;i<aa.length;i++)diff|=aa[i]^bb[i];
-      if(supplied.length>256||diff!==0)return Response.json({error:"Invalid password"},{status:401});
+      if(supplied.length>256)return Response.json({error:"Invalid password"},{status:401});
+      const auth=await requireDb().prepare("SELECT salt,password_hash FROM admin_auth WHERE id=1").first<any>();
+      if(!auth)return Response.json({error:"CRM authentication is not initialized."},{status:503});
+      const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(auth.salt)+supplied));
+      const actual=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+      if(actual!==String(auth.password_hash))return Response.json({error:"Invalid password"},{status:401});
       return Response.json({ok:true},{headers:{"Set-Cookie":await makeSessionCookie()}});
     }
     if(body.action==="logout")return Response.json({ok:true},{headers:{"Set-Cookie":clearSessionCookie()}});
