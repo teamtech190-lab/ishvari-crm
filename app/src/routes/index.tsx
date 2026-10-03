@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import "../styles.css";
 import {inclusiveTotals, orderStatusForShipment, shipmentStatusForOrder} from "../lib/crm-calculations";
-import { createCustomer, createOrder, getCustomers, getDashboard, getOrders, getProducts, updateOrderStatus, updateProduct, updateShipment, createShiprocketShipment, trackShiprocketShipment, getInvoice, getBusinessSettings, updateBusinessSettings, login as crmLogin, logout, changeAdminPassword, getPublicTracking } from "../lib/api/crm.functions";
+import { CrmApiError, createCustomer, createOrder, getCustomers, getDashboard, getOrders, getProducts, updateOrderStatus, updateProduct, updateShipment, createShiprocketShipment, trackShiprocketShipment, getInvoice, getBusinessSettings, updateBusinessSettings, login as crmLogin, logout, changeAdminPassword, getPublicTracking } from "../lib/api/crm.functions";
 
 export const Route = createFileRoute("/")({
   component: CRM,
@@ -103,8 +103,8 @@ function CRM(){
  const [authed,setAuthed]=useState<boolean|null>(null),[password,setPassword]=useState(""),[loginError,setLoginError]=useState(""); const [tracking,setTracking]=useState<any|undefined>(undefined);
  const [tab,setTab]=useState<Tab>("Overview"),[data,setData]=useState<any>({metrics:{orders:0,customers:0,shipped:0,delivered:0,pending:0},recent:[]});
  const [customers,setCustomers]=useState<any[]>([]),[orders,setOrders]=useState<any[]>([]),[products,setProducts]=useState<any[]>([]),[showCustomer,setShowCustomer]=useState(false),[showOrder,setShowOrder]=useState(false),[showPassword,setShowPassword]=useState(false),[orderDetails,setOrderDetails]=useState<any|null>(null),[loading,setLoading]=useState(false);
- async function refresh(){try{const [d,c,o,p]=await Promise.all([getDashboard(),getCustomers(),getOrders(),getProducts()]);setData(d);setCustomers(c as any[]);setOrders(o as any[]);setProducts(p as any[]);setAuthed(true)}catch(e:any){setAuthed(false);setLoginError(e?.message||"Could not load CRM data.")}}
- useEffect(()=>{const id=new URLSearchParams(window.location.search).get("track");if(id){getPublicTracking(id).then(setTracking).catch(()=>setTracking(null));}else{void refresh()}},[]);
+ async function refresh(initial=false){try{const [d,c,o,p]=await Promise.all([getDashboard(),getCustomers(),getOrders(),getProducts()]);setData(d);setCustomers(c as any[]);setOrders(o as any[]);setProducts(p as any[]);setAuthed(true);setLoginError("")}catch(e:any){setAuthed(false);if(e instanceof CrmApiError && e.status===401){setLoginError(initial?"":"Your sign-in session was not available. Please allow cookies for this site and sign in again.")}else{setLoginError(e?.message||"Could not load CRM data.")}}}
+ useEffect(()=>{const id=new URLSearchParams(window.location.search).get("track");if(id){getPublicTracking(id).then(setTracking).catch(()=>setTracking(null));}else{void refresh(true)}},[]);
  async function login(e:React.FormEvent){e.preventDefault();setLoading(true);setLoginError("");try{await crmLogin(password);setPassword("");await refresh()}catch(e:any){setLoginError(e?.message||"Could not sign in.")}setLoading(false)}
  if(tracking!==undefined)return <Tracking row={tracking}/>;
  if(authed===null)return <div className="center-screen"><div className="loader"/></div>;
