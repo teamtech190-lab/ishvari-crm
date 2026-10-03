@@ -1,59 +1,47 @@
 import { bindings } from "./bindings.server";
-
+import { constantTimeEqual, newAdminAuth, passwordHash, sessionSignature, validSession, type AdminAuth } from "./crm-crypto";
 const COOKIE = "ishvari_crm_session";
 const MAX_AGE = 60 * 60 * 12;
-
-function b64url(bytes: Uint8Array) {
-  let s = "";
-  for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+const OLD_SEED_HASH = "a6710a89c303084ffe954a1ab9fac7052cabd6e7bef0459fcb1e02f6487e2865";
+export function requireDb() {
+  const db = bindings().DB;
+  if (!db) throw new Error("CRM database binding DB is not configured.");
+  return db;
 }
-function fromB64url(value: string) {
-  const s = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
-  const raw = atob(s);
-  return Uint8Array.from(raw, c => c.charCodeAt(0));
+async function adminAuth(): Promise<AdminAuth | null> {
+  const db = requireDb();
+  const existing = await db.prepare("SELECT salt,password_hash FROM admin_auth WHERE id=1").first<AdminAuth>();
+  if (existing && existing.password_hash !== OLD_SEED_HASH) return existing;
+  const password = bindings().CRM_PASSWORD;
+  if (!password || password.length < 8 || password.length > 256) throw new Error("Set CRM_PASSWORD to an admin password of 8 to 256 characters in Worker secrets.");
+  const next = await newAdminAuth(password);
+  if (existing) await db.prepare("UPDATE admin_auth SET salt=?,password_hash=?,updated_at=datetime('now') WHERE id=1 AND password_hash=?").bind(next.salt,next.password_hash,OLD_SEED_HASH).run();
+  else await db.prepare("INSERT OR IGNORE INTO admin_auth (id,salt,password_hash) VALUES (1,?,?)").bind(next.salt,next.password_hash).run();
+  return db.prepare("SELECT salt,password_hash FROM admin_auth WHERE id=1").first<AdminAuth>();
 }
-async function sign(payload: string, secret: string) {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
-  return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload))));
+export async function checkAdminPassword(password: string) {
+  const auth = await adminAuth();
+  return !!auth && constantTimeEqual(await passwordHash(password,auth.salt),auth.password_hash);
 }
-async function verify(payload: string, signature: string, secret: string) {
-  const expected = fromB64url(await sign(payload, secret));
-  const actual = fromB64url(signature);
-  if (expected.byteLength !== actual.byteLength) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected[i] ^ actual[i];
-  return diff === 0;
+async function sessionSecret() {
+  const auth = await adminAuth();
+  if (!auth) throw new Error("CRM authentication is not initialized.");
+  // Changing the stored password invalidates all older sessions.
+  return `${auth.salt}:${auth.password_hash}`;
 }
-
 export async function makeSessionCookie() {
-  const secret = bindings().CRM_PASSWORD;
-  if (!secret) throw new Error("CRM_PASSWORD secret is not configured.");
-  const exp = Math.floor(Date.now()/1000) + MAX_AGE;
-  const payload = `admin.${exp}`;
-  const sig = await sign(payload, secret);
-  return `${COOKIE}=${payload}.${sig}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`;
+  const payload = `admin.${Math.floor(Date.now()/1000) + MAX_AGE}`;
+  return `${COOKIE}=${payload}.${await sessionSignature(payload,await sessionSecret())}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`;
 }
 export function clearSessionCookie() {
   return `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
 }
 export async function isAuthenticated(request: Request) {
-  const secret = bindings().CRM_PASSWORD;
-  if (!secret) return false;
   const raw = request.headers.get("Cookie")?.split(";").map(x=>x.trim()).find(x=>x.startsWith(COOKIE+"="))?.slice(COOKIE.length+1);
   if (!raw) return false;
-  const separator = raw.lastIndexOf(".");
-  if (separator <= 0 || separator === raw.length - 1) return false;
-  const payload = raw.slice(0, separator);
-  const sig = raw.slice(separator + 1);
-  const [role, expText] = payload.split(".");
-  if (role !== "admin" || !/^\d+$/.test(expText) || Number(expText) < Math.floor(Date.now()/1000)) return false;
-  return verify(payload, sig, secret);
+  return validSession(raw,await sessionSecret());
 }
-export function requireDb() {
-  const db = bindings().DB;
-  if (!db) throw new Error("CRM database is not configured.");
-  return db;
+export async function changePassword(password: string) {
+  const auth = await newAdminAuth(password);
+  await requireDb().prepare("UPDATE admin_auth SET salt=?,password_hash=?,updated_at=datetime('now') WHERE id=1").bind(auth.salt,auth.password_hash).run();
 }
-
-// Deployment sync marker: ensure latest CRM authentication code is rebuilt.
