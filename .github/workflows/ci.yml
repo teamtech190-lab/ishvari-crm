@@ -1,38 +1,36 @@
-name: Template CI
+name: CRM CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
-    runs-on: arc-runners-frontend
-    name: Validate template
-    # The app project lives in app/ (ci/ holds the deploy config, AGENTS.md +
-    # skills/ stay at root). Every build step runs there.
+    runs-on: ubuntu-latest
+    name: Validate CRM
     defaults:
       run:
         working-directory: app
     steps:
       - uses: actions/checkout@v6
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
       - name: Typecheck
-        run: bun run typecheck
-
-      # Deploys always ship the design inspector: apps-ci / apps-ci-dev export
-      # HF_DESIGN_INSPECTOR=1 before `bun run build`. Validate that exact
-      # artifact here — one build, not a separate plain + design pair.
-      - name: Build (design inspector on, as deploys ship it)
+        run: npm run typecheck
+      - name: CRM regression tests
+        run: npm run test:crm
+      - name: Build
         env:
-          HF_DESIGN_INSPECTOR: "1"
-        run: bun run build
-
-      - name: Package tests
-        run: bun run test:packages
+          HF_DESIGN_INSPECTOR: '1'
+        run: npm run build
