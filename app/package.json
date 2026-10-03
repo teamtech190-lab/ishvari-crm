@@ -17,12 +17,13 @@
     "typecheck": "tsc --noEmit",
     "typecheck:packages": "for dir in packages/*; do if [ -f \"$dir/package.json\" ]; then (cd \"$dir\" && bun run typecheck); fi; done",
     "test:packages": "for dir in packages/*; do if [ -f \"$dir/package.json\" ]; then (cd \"$dir\" && bun run test); fi; done",
-    "deploy": "npx wrangler d1 migrations apply DB --remote && npx wrangler deploy"
+    "deploy": "npm run build && npx wrangler d1 migrations apply DB --remote && npx wrangler deploy",
+    "test:crm": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
-    "@higgsfield/fnf": "workspace:*",
-    "@higgsfield/fnf-react": "workspace:*",
-    "@higgsfield/quanta": "workspace:*",
+    "@higgsfield/fnf": "file:packages/fnf",
+    "@higgsfield/fnf-react": "file:packages/fnf-react",
+    "@higgsfield/quanta": "file:packages/quanta",
     "@hookform/resolvers": "^5.2.2",
     "@material-symbols/svg-400": "^0.45.5",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -97,5 +98,9 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1",
     "vite-plugin-svgr": "^5.2.0"
+  },
+  "overrides": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
   }
 }
