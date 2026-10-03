@@ -1,4 +1,7 @@
-async function post(body:any){const r=await fetch("/",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.error||"Request failed");return data}
+export class CrmApiError extends Error {
+ constructor(message:string, public status:number){super(message);this.name="CrmApiError";}
+}
+async function post(body:any){const r=await fetch("/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new CrmApiError(data?.error||"Request failed",r.status);return data}
 export const getDashboard=()=>post({action:"dashboard"});
 export const getCustomers=()=>post({action:"customers"});
 export const getOrders=()=>post({action:"orders"});
