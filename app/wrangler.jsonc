@@ -8,6 +8,7 @@
   "routes": [{ "pattern": "crm.ishvari.in", "custom_domain": true }],
   "observability": { "enabled": true },
   "assets": { "directory": "./dist/client", "binding": "ASSETS", "not_found_handling": "none" },
-  "vars": { "HF_ENV": "production", "APP_SLUG": "ishvari-crm" },
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": { "HF_ENV": "production", "APP_SLUG": "ishvari-crm", "SHOPIFY_SHOP_DOMAIN": "ishvari-9710.myshopify.com" },
   "d1_databases": [{ "binding": "DB", "database_name": "ishvari-crm-db", "database_id": "08c32edd-e3b9-413c-bdc9-c8ea24abcf1d", "migrations_dir": "migrations" }]
 }

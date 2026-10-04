@@ -25,6 +25,9 @@ type AppEnv = {
   HF_ENV?: string;
   APP_SLUG?: string;
   CRM_PASSWORD?: string;
+  SHOPIFY_CLIENT_ID?: string;
+  SHOPIFY_CLIENT_SECRET?: string;
+  SHOPIFY_SHOP_DOMAIN?: string;
   SHIPROCKET_API_EMAIL?: string;
   SHIPROCKET_API_PASSWORD?: string;
 };

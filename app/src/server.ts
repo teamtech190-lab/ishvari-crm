@@ -39,8 +39,16 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 }
 
 export default {
+  async scheduled() {
+    const { bindings } = await import("./lib/bindings.server");
+    const { runShopifySync } = await import("./lib/shopify-sync");
+    await runShopifySync(bindings());
+  },
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const { shopifyRoute } = await import("./lib/shopify-route.server");
+      const shopify = await shopifyRoute(request);
+      if (shopify) return applySecurityHeaders(shopify);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return applySecurityHeaders(await normalizeCatastrophicSsrResponse(response));
