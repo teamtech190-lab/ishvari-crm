@@ -142,7 +142,7 @@ export async function syncProduct(
   if (product)
     for (const v of variants) {
       const existing = await db
-        .prepare("SELECT id,gst_percent FROM products WHERE shopify_variant_id=?")
+        .prepare("SELECT id,gst_percent,inventory_managed_by_crm FROM products WHERE shopify_variant_id=?")
         .bind(v.id)
         .first<any>();
       // Deliberately do not guess a match by product name or overwrite manual CRM records.
@@ -150,7 +150,7 @@ export async function syncProduct(
       statements.push(
         db
           .prepare(
-            `INSERT INTO products(id,name,sku,price_paise,gst_percent,stock,active,shopify_variant_id,shopify_product_id,image_url) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(shopify_variant_id) DO UPDATE SET name=excluded.name,sku=excluded.sku,price_paise=excluded.price_paise,stock=excluded.stock,active=excluded.active,image_url=excluded.image_url`,
+            `INSERT INTO products(id,name,sku,price_paise,gst_percent,stock,active,shopify_variant_id,shopify_product_id,image_url,total_stock,shopify_allocation,inventory_managed_by_crm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(shopify_variant_id) DO UPDATE SET name=CASE WHEN products.inventory_managed_by_crm=1 THEN products.name ELSE excluded.name END,sku=CASE WHEN products.inventory_managed_by_crm=1 THEN products.sku ELSE excluded.sku END,price_paise=CASE WHEN products.inventory_managed_by_crm=1 THEN products.price_paise ELSE excluded.price_paise END,stock=CASE WHEN products.inventory_managed_by_crm=1 THEN products.stock ELSE excluded.stock END,active=excluded.active,image_url=excluded.image_url,total_stock=COALESCE(products.total_stock,excluded.total_stock),shopify_allocation=COALESCE(products.shopify_allocation,excluded.shopify_allocation)`,
           )
           .bind(
             pid,
@@ -163,6 +163,9 @@ export async function syncProduct(
             v.id,
             id,
             product.featuredImage?.url || null,
+            v.inventoryQuantity ?? 0,
+            v.inventoryQuantity ?? 0,
+            0,
           ),
       );
     }

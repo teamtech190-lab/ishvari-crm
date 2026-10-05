@@ -6,6 +6,7 @@ export const getDashboard=()=>post({action:"dashboard"});
 export const getCustomers=()=>post({action:"customers"});
 export const getOrders=()=>post({action:"orders"});
 export const getProducts=()=>post({action:"products"});
+export const createProduct=({data}:{data:any})=>post({action:"createProduct",...data});
 export const createCustomer=({data}:{data:any})=>post({action:"createCustomer",...data});
 export const createOrder=({data}:{data:any})=>post({action:"createOrder",...data});
 export const updateOrderStatus=({data}:{data:any})=>post({action:"updateOrderStatus",...data});
