@@ -306,7 +306,10 @@ export async function syncOrder(
   for (const productId of inventoryProducts) {
     const previousQty = previousByProduct.get(productId) || 0;
     const currentQty = currentByProduct.get(productId) || 0;
-    const delta = previousQty - currentQty;
+    // A cancelled Shopify order no longer reserves physical or online stock.
+    // On the first cancellation sync this restores the quantity previously applied.
+    const effectiveCurrentQty = order.cancelledAt ? 0 : currentQty;
+    const delta = previousQty - effectiveCurrentQty;
     if (!delta) continue;
     const key = `shopify:${id}:inventory:${order.updatedAt}:${productId}`;
     statements.push(
