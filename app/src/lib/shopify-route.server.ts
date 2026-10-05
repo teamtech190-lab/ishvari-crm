@@ -7,7 +7,7 @@ import {
   shopifyStatus,
   receiveWebhook,
 } from "./shopify-sync";
-export async function shopifyRoute(request: Request, ctx?: ExecutionContext): Promise<Response | null> {
+export async function shopifyRoute(request: Request, ctx?: { waitUntil(promise: Promise<unknown>): void }): Promise<Response | null> {
   const path = new URL(request.url).pathname;
   if (path !== "/api/shopify" && path !== "/api/shopify/webhook") return null;
   const env = bindings();
