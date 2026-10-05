@@ -47,7 +47,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const { shopifyRoute } = await import("./lib/shopify-route.server");
-      const shopify = await shopifyRoute(request, ctx as ExecutionContext);
+      const shopify = await shopifyRoute(request, ctx as { waitUntil(promise: Promise<unknown>): void });
       if (shopify) return applySecurityHeaders(shopify);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
