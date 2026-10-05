@@ -37,7 +37,7 @@ export async function graphql(
     if (!tokenCache || tokenCache.key !== key || tokenCache.expires < Date.now() + 60000) {
       const r = await fetch(`https://${domain}/admin/oauth/access_token`, {
         method: "POST",
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(15000),
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -57,7 +57,7 @@ export async function graphql(
     }
     const r = await fetch(`https://${domain}/admin/api/${VERSION}/graphql.json`, {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(20000),
       headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": tokenCache.token },
       body: JSON.stringify({ query, variables }),
@@ -150,7 +150,7 @@ export async function syncProduct(
       statements.push(
         db
           .prepare(
-            `INSERT INTO products(id,name,sku,price_paise,gst_percent,stock,active,shopify_variant_id,shopify_product_id) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(shopify_variant_id) DO UPDATE SET name=excluded.name,sku=excluded.sku,price_paise=excluded.price_paise,stock=excluded.stock,active=excluded.active`,
+            `INSERT INTO products(id,name,sku,price_paise,gst_percent,stock,active,shopify_variant_id,shopify_product_id,image_url) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(shopify_variant_id) DO UPDATE SET name=excluded.name,sku=excluded.sku,price_paise=excluded.price_paise,stock=excluded.stock,active=excluded.active,image_url=excluded.image_url`,
           )
           .bind(
             pid,
@@ -162,6 +162,7 @@ export async function syncProduct(
             product.status === "ACTIVE" ? 1 : 0,
             v.id,
             id,
+            product.featuredImage?.url || null,
           ),
       );
     }

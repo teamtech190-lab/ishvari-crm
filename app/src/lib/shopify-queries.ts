@@ -1,7 +1,7 @@
 export const SHOP_QUERY = `query CrmShop { shop { name myshopifyDomain currencyCode taxesIncluded } currentAppInstallation { accessScopes { handle } } }`;
 export const PRODUCT_IDS = `query CrmProducts($after: String) { products(first: 5, after: $after, sortKey: ID) { nodes { id } pageInfo { endCursor hasNextPage } } }`;
 export const ORDER_IDS = `query CrmOrders($after: String) { orders(first: 5, after: $after, sortKey: CREATED_AT) { nodes { id } pageInfo { endCursor hasNextPage } } }`;
-export const PRODUCT_QUERY = `query CrmProduct($id: ID!, $after: String) { product(id: $id) { id title status variants(first: 100, after: $after) { nodes { id title sku price inventoryQuantity taxable } pageInfo { endCursor hasNextPage } } } }`;
+export const PRODUCT_QUERY = `query CrmProduct($id: ID!, $after: String) { product(id: $id) { id title status featuredImage { url } variants(first: 100, after: $after) { nodes { id title sku price inventoryQuantity taxable } pageInfo { endCursor hasNextPage } } } }`;
 export const ORDER_QUERY = `query CrmOrder($id: ID!, $after: String) { order(id: $id) {
  id name createdAt updatedAt cancelledAt displayFinancialStatus displayFulfillmentStatus email phone taxesIncluded paymentGatewayNames
  shippingAddress { name phone address1 address2 city province zip countryCodeV2 }
