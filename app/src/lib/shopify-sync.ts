@@ -150,7 +150,7 @@ export async function syncProduct(
       statements.push(
         db
           .prepare(
-            `INSERT INTO products(id,name,sku,price_paise,gst_percent,stock,active,shopify_variant_id,shopify_product_id) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(shopify_variant_id) DO UPDATE SET name=excluded.name,sku=excluded.sku,price_paise=excluded.price_paise,stock=excluded.stock,active=excluded.active`,
+            `INSERT INTO products(id,name,sku,price_paise,gst_percent,stock,active,shopify_variant_id,shopify_product_id,image_url) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(shopify_variant_id) DO UPDATE SET name=excluded.name,sku=excluded.sku,price_paise=excluded.price_paise,stock=excluded.stock,active=excluded.active,image_url=excluded.image_url`,
           )
           .bind(
             pid,
@@ -162,6 +162,7 @@ export async function syncProduct(
             product.status === "ACTIVE" ? 1 : 0,
             v.id,
             id,
+            product.featuredImage?.url || null,
           ),
       );
     }
