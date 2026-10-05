@@ -196,6 +196,9 @@ export async function syncOrder(
     .prepare("SELECT id,customer_id,status,shopify_updated_at FROM orders WHERE shopify_order_id=?")
     .bind(id)
     .first<any>();
+  const previousItems = existing
+    ? await db.prepare("SELECT id,product_id,quantity FROM order_items WHERE order_id=?").bind(existing.id).all<any>()
+    : { results: [] as any[] };
   if (existing?.shopify_updated_at && existing.shopify_updated_at >= order.updatedAt) return;
   const oid = existing?.id || crypto.randomUUID(),
     cid = existing?.customer_id || crypto.randomUUID();
@@ -286,6 +289,33 @@ export async function syncOrder(
         .prepare("INSERT INTO shipments(id,order_id,status) VALUES(?,?,?)")
         .bind(crypto.randomUUID(), oid, status === "SHIPPED" ? "SHIPPED" : "NOT_CREATED"),
     );
+
+  // Reconcile Shopify inventory to the latest order quantities. The ledger keys make
+  // repeated webhooks/syncs safe and quantity edits apply only their net difference.
+  const previousByProduct = new Map<string, number>();
+  for (const it of previousItems.results || [])
+    if (it.product_id) previousByProduct.set(it.product_id, (previousByProduct.get(it.product_id) || 0) + Number(it.quantity || 0));
+  const currentByProduct = new Map<string, number>();
+  for (const item of items) {
+    if (!item.variant) continue;
+    const product = await db.prepare("SELECT id,inventory_managed_by_crm FROM products WHERE shopify_variant_id=?").bind(item.variant.id).first<any>();
+    if (product?.id && product.inventory_managed_by_crm)
+      currentByProduct.set(product.id, (currentByProduct.get(product.id) || 0) + Number(item.quantity || 0));
+  }
+  const inventoryProducts = new Set([...previousByProduct.keys(), ...currentByProduct.keys()]);
+  for (const productId of inventoryProducts) {
+    const previousQty = previousByProduct.get(productId) || 0;
+    const currentQty = currentByProduct.get(productId) || 0;
+    const delta = previousQty - currentQty;
+    if (!delta) continue;
+    const key = `shopify:${id}:inventory:${order.updatedAt}:${productId}`;
+    statements.push(
+      db.prepare("UPDATE products SET total_stock=MAX(0,total_stock+?),stock=MAX(0,total_stock+?),shopify_allocation=MAX(0,MIN(total_stock+?,shopify_allocation+?)) WHERE id=? AND inventory_managed_by_crm=1")
+        .bind(delta,delta,delta,delta,productId),
+      db.prepare("INSERT OR IGNORE INTO inventory_movements(id,product_id,order_id,reference_key,source,kind,quantity_delta,allocation_delta) VALUES(?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(),productId,oid,key,"SHOPIFY",delta,delta<0?"SALE":"ADJUSTMENT",delta,delta),
+    );
+  }
   await db.batch(statements);
 }
 export async function checkShopify(env: ShopifyEnv) {
