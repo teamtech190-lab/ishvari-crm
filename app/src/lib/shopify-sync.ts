@@ -316,7 +316,7 @@ export async function syncOrder(
       db.prepare("UPDATE products SET total_stock=MAX(0,total_stock+?),stock=MAX(0,total_stock+?),shopify_allocation=MAX(0,MIN(total_stock+?,shopify_allocation+?)) WHERE id=? AND inventory_managed_by_crm=1")
         .bind(delta,delta,delta,delta,productId),
       db.prepare("INSERT OR IGNORE INTO inventory_movements(id,product_id,order_id,reference_key,source,kind,quantity_delta,allocation_delta) VALUES(?,?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(),productId,oid,key,"SHOPIFY",delta,delta<0?"SALE":"ADJUSTMENT",delta,delta),
+        .bind(crypto.randomUUID(),productId,oid,key,"SHOPIFY",delta<0?"SALE":"ADJUSTMENT",delta,delta),
     );
   }
   await db.batch(statements);
