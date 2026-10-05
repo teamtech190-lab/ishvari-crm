@@ -37,7 +37,7 @@ export async function graphql(
     if (!tokenCache || tokenCache.key !== key || tokenCache.expires < Date.now() + 60000) {
       const r = await fetch(`https://${domain}/admin/oauth/access_token`, {
         method: "POST",
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(15000),
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -57,7 +57,7 @@ export async function graphql(
     }
     const r = await fetch(`https://${domain}/admin/api/${VERSION}/graphql.json`, {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(20000),
       headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": tokenCache.token },
       body: JSON.stringify({ query, variables }),
