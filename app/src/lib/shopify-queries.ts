@@ -13,4 +13,4 @@ export const WEBHOOK_LIST = `query CrmWebhooks($after: String) { webhookSubscrip
 export const WEBHOOK_CREATE = `mutation CrmSubscribe($topic: WebhookSubscriptionTopic!, $input: WebhookSubscriptionInput!) { webhookSubscriptionCreate(topic: $topic, webhookSubscription: $input) { webhookSubscription { id } userErrors { field message } } }`;
 
 export const INVENTORY_ITEM_QUERY = `query CrmInventoryItem($id: ID!) { productVariant(id: $id) { id inventoryItem { id inventoryLevels(first: 20) { nodes { location { id } quantities(names: ["available"]) { name quantity } } } } } }`;
-export const INVENTORY_SET = `mutation CrmInventorySet($input: InventorySetQuantitiesInput!) { inventorySetQuantities(input: $input) { inventoryAdjustmentGroup { createdAt reason } userErrors { field message } } }`;
+export const INVENTORY_SET = `mutation CrmInventorySet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) { inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) { inventoryAdjustmentGroup { createdAt reason } userErrors { field message } } }`;
