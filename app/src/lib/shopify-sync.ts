@@ -71,7 +71,7 @@ export async function graphql(
     if (body.errors?.length) {
       if (body.errors.some((e: any) => e.extensions?.code === "ACCESS_DENIED"))
         throw new Error(
-          "Shopify denied access. Check read_orders, read_products and protected customer data access.",
+          "Shopify denied access. Check the app’s granted access scopes and protected customer data access.",
         );
       throw new Error(
         "Shopify could not complete the query. Check app access or retry after API throttling.",
@@ -584,6 +584,7 @@ export async function pushManagedInventoryToShopify(env: ShopifyEnv, productId?:
       throw new Error(`Shopify product ${p.name} must be stocked at exactly one location before CRM inventory write-back is enabled.`);
     const locationId = levels[0].location.id;
     const result = await graphql(env, Q.INVENTORY_SET, {
+      idempotencyKey: crypto.randomUUID(),
       input: {
         name: "available",
         reason: "correction",
