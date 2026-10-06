@@ -6,6 +6,7 @@ import {
   runShopifySync,
   shopifyStatus,
   receiveWebhook,
+  pushManagedInventoryToShopify,
 } from "./shopify-sync";
 export async function shopifyRoute(request: Request, ctx?: { waitUntil(promise: Promise<unknown>): void }): Promise<Response | null> {
   const path = new URL(request.url).pathname;
@@ -35,7 +36,9 @@ export async function shopifyRoute(request: Request, ctx?: { waitUntil(promise: 
             ? await enableShopify(env)
             : body.action === "sync"
               ? await runShopifySync(env)
-              : null;
+              : body.action === "push_inventory"
+                ? await pushManagedInventoryToShopify(env, body.productId)
+                : null;
     if (!result) return Response.json({ error: "Unknown action" }, { status: 400 });
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
