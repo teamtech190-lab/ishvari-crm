@@ -7,12 +7,18 @@ import {
   shopifyStatus,
   receiveWebhook,
 } from "./shopify-sync";
-export async function shopifyRoute(request: Request): Promise<Response | null> {
+export async function shopifyRoute(request: Request, ctx?: { waitUntil(promise: Promise<unknown>): void }): Promise<Response | null> {
   const path = new URL(request.url).pathname;
   if (path !== "/api/shopify" && path !== "/api/shopify/webhook") return null;
   const env = bindings();
   try {
-    if (path === "/api/shopify/webhook") return await receiveWebhook(request, env);
+    if (path === "/api/shopify/webhook") {
+      const response = await receiveWebhook(request, env);
+      // The webhook is persisted before Shopify receives 200. Process it immediately
+      // in the background; the 5-minute cron remains a durable retry fallback.
+      if (response.ok && ctx) ctx.waitUntil(runShopifySync(env).catch((error) => console.error("Shopify background sync failed:", error instanceof Error ? error.message : "unknown error")));
+      return response;
+    }
     if (request.method !== "POST")
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     if (request.headers.get("Origin") !== new URL(request.url).origin)
