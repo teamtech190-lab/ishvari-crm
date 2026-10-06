@@ -329,9 +329,9 @@ export async function checkShopify(env: ShopifyEnv) {
       "Shopify catalog prices must include tax before enabling this CRM integration.",
     );
   const scopes = data.currentAppInstallation.accessScopes.map((s: any) => s.handle);
-  if (!["read_products", "read_orders"].every((s) => scopes.includes(s)))
+  if (!["read_products", "read_orders", "write_inventory"].every((s) => scopes.includes(s)))
     throw new Error(
-      "Enable read_products and read_orders, then approve the updated app permissions.",
+      "Enable read_products, read_orders and write_inventory, then approve the updated app permissions.",
     );
   return data.shop;
 }
@@ -562,4 +562,38 @@ export async function shopifyStatus(env: ShopifyEnv) {
     configured: !!(env.SHOPIFY_SHOP_DOMAIN && env.SHOPIFY_CLIENT_ID && env.SHOPIFY_CLIENT_SECRET),
     pending: pending?.n || 0,
   };
+}
+
+export async function pushManagedInventoryToShopify(env: ShopifyEnv, productId?: string) {
+  const db = dbOf(env);
+  const data = await graphql(env, Q.SHOP_QUERY);
+  const scopes = data.currentAppInstallation.accessScopes.map((s: any) => s.handle);
+  if (!scopes.includes("write_inventory"))
+    throw new Error("Enable write_inventory, then approve the updated app permissions.");
+
+  const rows = productId
+    ? await db.prepare("SELECT id,name,shopify_variant_id,shopify_allocation FROM products WHERE id=? AND inventory_managed_by_crm=1 AND shopify_variant_id IS NOT NULL").bind(productId).all<any>()
+    : await db.prepare("SELECT id,name,shopify_variant_id,shopify_allocation FROM products WHERE inventory_managed_by_crm=1 AND shopify_variant_id IS NOT NULL AND active=1").all<any>();
+  let updated = 0;
+  for (const p of rows.results || []) {
+    const variantData = await graphql(env, Q.INVENTORY_ITEM_QUERY, { id: p.shopify_variant_id });
+    const item = variantData.productVariant?.inventoryItem;
+    const levels = item?.inventoryLevels?.nodes || [];
+    if (!item?.id) throw new Error(`Shopify inventory item is missing for ${p.name}.`);
+    if (levels.length !== 1)
+      throw new Error(`Shopify product ${p.name} must be stocked at exactly one location before CRM inventory write-back is enabled.`);
+    const locationId = levels[0].location.id;
+    const result = await graphql(env, Q.INVENTORY_SET, {
+      input: {
+        name: "available",
+        reason: "correction",
+        ignoreCompareQuantity: true,
+        quantities: [{ inventoryItemId: item.id, locationId, quantity: Math.max(0, Number(p.shopify_allocation || 0)) }],
+      },
+    });
+    const errors = result.inventorySetQuantities?.userErrors || [];
+    if (errors.length) throw new Error(`Shopify inventory update failed for ${p.name}: ${errors[0].message}`);
+    updated++;
+  }
+  return { updated };
 }
