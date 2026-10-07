@@ -73,9 +73,10 @@ export async function graphql(
         throw new Error(
           "Shopify denied access. Check the app’s granted access scopes and protected customer data access.",
         );
-      throw new Error(
-        "Shopify could not complete the query. Check app access or retry after API throttling.",
-      );
+      const detail = String(body.errors[0]?.message || "Unknown GraphQL error")
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 300);
+      throw new Error(`Shopify GraphQL error: ${detail}`);
     }
     return body.data;
   }
