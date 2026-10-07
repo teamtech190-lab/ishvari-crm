@@ -30,7 +30,9 @@ export function ShopifyPanel({ onSaved }: { onSaved: () => Promise<void> }) {
           ? `Connected to ${r.name}`
           : action === "enable"
             ? "Automatic sync enabled. Import continues every 5 minutes."
-            : r.busy
+            : action === "push_inventory"
+              ? `Reconciled ${r.updated || 0} managed products to Shopify inventory.`
+              : r.busy
               ? "A sync is already running."
               : `Synced ${r.processed || 0} records. More records are imported on the next run.`,
       );
@@ -69,6 +71,13 @@ export function ShopifyPanel({ onSaved }: { onSaved: () => Promise<void> }) {
           </button>
           <button className="ghost" disabled={busy || !state?.enabled} onClick={() => run("sync")}>
             Sync now
+          </button>
+          <button
+            className="ghost"
+            disabled={busy || !state?.enabled}
+            onClick={() => run("push_inventory")}
+          >
+            Reconcile inventory
           </button>
           <button
             className="ghost"
