@@ -584,13 +584,19 @@ export async function pushManagedInventoryToShopify(env: ShopifyEnv, productId?:
     if (levels.length !== 1)
       throw new Error(`Shopify product ${p.name} must be stocked at exactly one location before CRM inventory write-back is enabled.`);
     const locationId = levels[0].location.id;
+    const available = levels[0].quantities?.find((q: any) => q.name === "available")?.quantity;
+    if (!Number.isInteger(available) || available < 0)
+      throw new Error(`Shopify available inventory is unavailable for ${p.name}; no stock was changed.`);
+    const desired = Math.max(0, Number(p.shopify_allocation || 0));
+    if (!Number.isSafeInteger(desired))
+      throw new Error(`Shopify allocation is invalid for ${p.name}; no stock was changed.`);
+    if (available === desired) continue;
     const result = await graphql(env, Q.INVENTORY_SET, {
       idempotencyKey: crypto.randomUUID(),
       input: {
         name: "available",
         reason: "correction",
-        ignoreCompareQuantity: true,
-        quantities: [{ inventoryItemId: item.id, locationId, quantity: Math.max(0, Number(p.shopify_allocation || 0)) }],
+        quantities: [{ inventoryItemId: item.id, locationId, quantity: desired, compareQuantity: available }],
       },
     });
     const errors = result.inventorySetQuantities?.userErrors || [];
