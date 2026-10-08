@@ -46,7 +46,7 @@ export async function shopifyRoute(request: Request, ctx?: { waitUntil(promise: 
     // No token, request body, address, or customer details are logged.
     console.error("Shopify operation failed:", message);
     const safe =
-      /^(Shopify |Set SHOPIFY_|Enable read_|Only INR|This CRM|A different Shopify|Could not register)/.test(
+      /^(Shopify |Set SHOPIFY_|Enable read_|Enable write_inventory|Only INR|This CRM|A different Shopify|Could not register)/.test(
         message,
       )
         ? message
