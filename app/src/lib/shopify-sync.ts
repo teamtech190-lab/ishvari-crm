@@ -596,7 +596,7 @@ export async function pushManagedInventoryToShopify(env: ShopifyEnv, productId?:
       input: {
         name: "available",
         reason: "correction",
-        quantities: [{ inventoryItemId: item.id, locationId, quantity: desired, compareQuantity: available }],
+        quantities: [{ inventoryItemId: item.id, locationId, quantity: desired, changeFromQuantity: available }],
       },
     });
     const errors = result.inventorySetQuantities?.userErrors || [];
